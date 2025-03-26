@@ -36,22 +36,26 @@ the components of nano-ML's type system.
 
     (a) τ
 
-    > ...your answer here...
+    >  a type
 
     (b) σ
     
-    > 
+    > a type scheme
 
     (c) Γ
     
-    > 
+    > a mapping from names to type schemes
 
     And finally, 
 
     (d) Say briefly what, in nano-ML, is the difference between τ and σ:
 
-    > 
+    >  A type built with type variables, type constructors, and constructor 
+    application is written using the metavariable tau.
 
+    A type scheme is restricted and may only appear at the top-level,
+    not as an argument to a type constructor.
+    
     _You are preparing for exercise 3._
 
 
@@ -103,17 +107,17 @@ assistance!
  2. (a) Yes or no: does the substitution `(α → sym) ∘ (β → bool) ∘ (γ → int)`
         replace type variable `α` with type `sym`?
 
-        >
+        > yes
 
     (b) Yes or no: does the substitution `(α → sym) ∘ (β → bool) ∘ (γ → int)`
         replace type variable `β` with type `bool`?
 
-        >
+        > yes
 
     (c) Yes or no: does the substitution `(α → sym) ∘ (β → bool) ∘ (γ → int)`
         leave the type `γ list` unchanged?
 
-        >
+        > no
 
     (d) Which of the following nano-ML type expressions, written in concrete
         nano-ML syntax, are *instances* of the polymorphic type scheme 
@@ -125,19 +129,19 @@ assistance!
         
         `(list int)`   True or False
 
-        >
+        > false
 
         `(list (list int))`  True or False
 
-        >
+        > false
 
         `((list (list int)) -> int)`  True or False
 
-        >
+        > true
 
         `((list int) int -> list)`  True or False
 
-        >
+        > false
 
     _You have a foundation on which to build for exercise 2._
 
@@ -156,21 +160,21 @@ explains how to solve constraints by finding substitutions.
     
     (a) Write $C'$:
 
-    >
+    > int ~ α₂ /\ α₂ ~ α₃ list /\ α₄ ~ α₃ list list
     
     (b) Does $C'$ have a solution?  Answer yes or no.
 
-    >
+    > no
 
     Now define $C''$ as the result of applying substitution `(α₂ ↦ int)` to $C$.
 
     (c) Write $C''$:
     
-    >
+    > α₁ ~ int /\ int ~ α₃ list /\ α₄ ~ α₃ list list
 
     (d) Does $C''$ have a solution?  Answer yes or no.
 
-    >
+    > no
     
 
     _You are getting ready for exercise 2._
@@ -190,29 +194,29 @@ explains how to solve constraints by finding substitutions.
 
     (a) Write a substitution `θ₁` that solves constraint `C₁`:
        
-    >
+    > a ↦ int
 
 
     (b) Write a substitution `θ₂` that solves constraint `C₂`:
 
-    >
+    > a ↦ bool
 
 
     (c) Does the composition `θ₂ ∘ θ₁` solve constraint `C₃ = C₁ /\ C₂`?
         Answer yes or no.
 
-    >
+    > yes
 
 
     (d) Can constraint `C₃` be solved? Answer yes or no.
 
-    >
+    > Yes
 
 
     (e) Can constraint `C₄` be solved? Answer yes or no.
 
 
-    >
+    > no
 
 
     _You are ready for exercise 2._
