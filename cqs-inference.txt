@@ -363,7 +363,7 @@ references to that that function in this reading call it `too-poly`.
 
     (a) If τ' is β list, what are its free type variables?
 
-        >
+        > 
 
 
     (b) What set in this example plays the role of `{ α₁, ..., αₙ }` in Milner's
