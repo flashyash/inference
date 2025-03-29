@@ -366,7 +366,7 @@ references to that that function in this reading call it `too-poly`.
         >
 
 
-    b) What set in this example plays the role of `{ α₁, ..., αₙ }` in Milner's
+    (b) What set in this example plays the role of `{ α₁, ..., αₙ }` in Milner's
         Let, which is ftv(τ')-ftv(Γ)?
 
         >
