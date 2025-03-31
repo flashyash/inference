@@ -1650,16 +1650,6 @@ fun unsatisfiableEquality (t1, t2) =
   end
   
 (* constraint solving ((prototype)) 437b *)
-<<<<<<< Updated upstream
-fun solve c = idsubst
-  | solve TYVAR t1 ~ TYVAR t2 = t1 |--> TYVAR t2
-  | solve TYVAR t1 ~ TYCON tc1 = t1 |--> TYCON tc1
-  | solve TYVAR t1 ~ CONAPP (ty1, ts) = 
-      if member (t1, freetyvars ty1) then
-        raise TypeError unsatisfiableEquality (t1, CONAPP (ty1, ts))
-      else
-        t1 |--> CONAPP (ty1, ts)
-=======
 fun solve TRIVIAL = idsubst
   | solve (TYVAR t1 ~ TYVAR t2) = t1 |--> TYVAR t2
   | solve (TYVAR t1 ~ TYCON tc1) = t1 |--> TYCON tc1
@@ -1677,7 +1667,6 @@ fun solve TRIVIAL = idsubst
   | solve _ = raise TypeError "unsolvable constraint"
 
 
->>>>>>> Stashed changes
 
 (* type declarations for consistency checking *)
 val _ = op solve : con -> subst
