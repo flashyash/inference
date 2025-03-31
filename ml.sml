@@ -1653,17 +1653,21 @@ fun unsatisfiableEquality (t1, t2) =
 fun solve TRIVIAL = idsubst
   | solve (TYVAR t1 ~ TYVAR t2) = t1 |--> TYVAR t2
   | solve (TYVAR t1 ~ TYCON tc1) = t1 |--> TYCON tc1
+  | solve (TYCON tc1 ~ TYVAR t1) = t1 |--> TYCON tc1
   | solve (TYVAR t1 ~ CONAPP (ty1, ts)) = 
       if member t1 (freetyvars ty1) then
         unsatisfiableEquality (TYVAR t1, CONAPP (ty1, ts))
       else
         t1 |--> CONAPP (ty1, ts)
+  | solve (TYCON tc1 ~ TYCON tc2) = if eqTycon (tc1, tc2) then idsubst
+                                    else raise TypeError "unsolvable constraint"
   | solve (CONAPP(ty1, ts1) ~ CONAPP(ty2, ts2)) = 
       let val theta = solve (ty1 ~ ty2)
       in ListPair.foldlEq (fn (t1, t2, theta) => compose (theta, solve (t1 ~ t2)))
               theta
               (ts1, ts2)
       end
+
   | solve _ = raise TypeError "unsolvable constraint"
 
 
@@ -2799,16 +2803,44 @@ val _ = op strip_options : action -> string list -> action * string list
 
 
 
-
 val () = Unit.checkAssert "int ~ bool cannot be solved"
          (fn () => hasNoSolution (inttype ~ booltype))
+
 val () = Unit.checkAssert "bool ~ bool can be solved"
          (fn () => hasSolution (booltype ~ booltype))
+
 val () = Unit.checkAssert "bool ~ bool is solved by the identity substitution"
          (fn () => solutionEquivalentTo (booltype ~ booltype, idsubst))
+
 val () = Unit.checkAssert "bool ~ 'a is solved by 'a |--> bool"
-         (fn () => solutionEquivalentTo (booltype ~ TYVAR "'a", 
-                                         "'a" |--> booltype))
+         (fn () => solutionEquivalentTo (booltype ~ TYVAR "a", [("a", booltype)]))
+
+val () = Unit.checkAssert "'a ~ bool cannot be solved cyclically"
+         (fn () => hasNoSolution (TYVAR "a" ~ CONAPP (TYVAR "a", [])))
+
+val () = Unit.checkAssert "'a ~ 'b is solved by 'a |--> 'b"
+         (fn () => solutionEquivalentTo (TYVAR "a" ~ TYVAR "b", [("a", TYVAR "b")]))
+
+val () = Unit.checkAssert "'a ~ 'a cannot be solved cyclically"
+         (fn () => hasNoSolution (TYVAR "a" ~ CONAPP (TYVAR "a", [])))
+
+val () = Unit.checkAssert "TYCON 'list ~ TYCON 'list can be solved"
+         (fn () => hasSolution (TYCON "list" ~ TYCON "list"))
+
+val () = Unit.checkAssert "TYCON 'list ~ TYCON 'pair cannot be solved"
+         (fn () => hasNoSolution (TYCON "list" ~ TYCON "pair"))
+
+val () = Unit.checkAssert "CONAPP (TYCON 'list, [int]) ~ CONAPP (TYCON 'list, [int]) can be solved"
+         (fn () => hasSolution (CONAPP (TYCON "list", [inttype]) ~ CONAPP (TYCON "list", [inttype])))
+
+val () = Unit.checkAssert "CONAPP (TYCON 'list, [int]) ~ CONAPP (TYCON 'list, [bool]) cannot be solved"
+         (fn () => hasNoSolution (CONAPP (TYCON "list", [inttype]) ~ CONAPP (TYCON "list", [booltype])))
+
+val () = Unit.checkAssert "TRIVIAL can always be solved"
+         (fn () => hasSolution TRIVIAL)
+         
+val () = Unit.checkAssert "Unsolvable constraint raises TypeError"
+         (fn () => hasSolution (TYVAR "a" ~ TYCON "unknown"))
 
 val () = Unit.report ()
 val () = Unit.reportWhenFailures ()
