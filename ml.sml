@@ -1648,7 +1648,9 @@ fun unsatisfiableEquality (t1, t2) =
                               " equal to " ^ typeString t2')
          | _ => raise InternalError "failed to synthesize canonical type"
   end
+  
 (* constraint solving ((prototype)) 437b *)
+<<<<<<< Updated upstream
 fun solve c = idsubst
   | solve TYVAR t1 ~ TYVAR t2 = t1 |--> TYVAR t2
   | solve TYVAR t1 ~ TYCON tc1 = t1 |--> TYCON tc1
@@ -1657,6 +1659,25 @@ fun solve c = idsubst
         raise TypeError unsatisfiableEquality (t1, CONAPP (ty1, ts))
       else
         t1 |--> CONAPP (ty1, ts)
+=======
+fun solve TRIVIAL = idsubst
+  | solve (TYVAR t1 ~ TYVAR t2) = t1 |--> TYVAR t2
+  | solve (TYVAR t1 ~ TYCON tc1) = t1 |--> TYCON tc1
+  | solve (TYVAR t1 ~ CONAPP (ty1, ts)) = 
+      if member t1 (freetyvars ty1) then
+        unsatisfiableEquality (TYVAR t1, CONAPP (ty1, ts))
+      else
+        t1 |--> CONAPP (ty1, ts)
+  | solve (CONAPP(ty1, ts1) ~ CONAPP(ty2, ts2)) = 
+      let val theta = solve (ty1 ~ ty2)
+      in ListPair.foldlEq (fn (t1, t2, theta) => compose (theta, solve (t1 ~ t2)))
+              theta
+              (ts1, ts2)
+      end
+  | solve _ = raise TypeError "unsolvable constraint"
+
+
+>>>>>>> Stashed changes
 
 (* type declarations for consistency checking *)
 val _ = op solve : con -> subst
@@ -1665,6 +1686,9 @@ fun hasNoSolution c = (solve c; false) handle TypeError _ => true
 fun hasGoodSolution c = solves (solve c, c) handle TypeError _ => false
 val hasSolution = not o hasNoSolution : con -> bool
 fun solutionEquivalentTo (c, theta) = eqsubst (solve c, theta)
+
+
+
 (* utility functions for {\uml} S435c *)
 (* filled in when implementing uML *)
 (* exhaustiveness analysis for {\uml} S435b *)
@@ -2560,7 +2584,8 @@ val primitiveBasis =
                                funtype ([listtype alpha], listtype alpha)) :: 
                      [])
   end
-val predefs = 
+val predefined_included = false
+val predefs = if not predefined_included then [] else 
                [ ";  predefined {\\nml} functions S423b "
                , "(define bind (x y alist)"
                , "  (if (null? alist)"
@@ -2782,3 +2807,19 @@ val _ = if hasOption "NORUN" then ()
         else perform (strip_options DEFAULT (CommandLine.arguments ()))
 (* type declarations for consistency checking *)
 val _ = op strip_options : action -> string list -> action * string list
+
+
+
+
+val () = Unit.checkAssert "int ~ bool cannot be solved"
+         (fn () => hasNoSolution (inttype ~ booltype))
+val () = Unit.checkAssert "bool ~ bool can be solved"
+         (fn () => hasSolution (booltype ~ booltype))
+val () = Unit.checkAssert "bool ~ bool is solved by the identity substitution"
+         (fn () => solutionEquivalentTo (booltype ~ booltype, idsubst))
+val () = Unit.checkAssert "bool ~ 'a is solved by 'a |--> bool"
+         (fn () => solutionEquivalentTo (booltype ~ TYVAR "'a", 
+                                         "'a" |--> booltype))
+
+val () = Unit.report ()
+val () = Unit.reportWhenFailures ()
