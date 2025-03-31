@@ -1649,7 +1649,15 @@ fun unsatisfiableEquality (t1, t2) =
          | _ => raise InternalError "failed to synthesize canonical type"
   end
 (* constraint solving ((prototype)) 437b *)
-fun solve c = raise LeftAsExercise "solve"
+fun solve c = idsubst
+  | solve TYVAR t1 ~ TYVAR t2 = t1 |--> TYVAR t2
+  | solve TYVAR t1 ~ TYCON tc1 = t1 |--> TYCON tc1
+  | solve TYVAR t1 ~ CONAPP (ty1, ts) = 
+      if member (t1, freetyvars ty1) then
+        raise TypeError unsatisfiableEquality (t1, CONAPP (ty1, ts))
+      else
+        t1 |--> CONAPP (ty1, ts)
+
 (* type declarations for consistency checking *)
 val _ = op solve : con -> subst
 (* constraint solving ((elided)) (THIS CAN'T HAPPEN -- claimed code was not used) *)
