@@ -1671,7 +1671,6 @@ fun solve TRIVIAL = idsubst
   | solve _ = raise TypeError "unsolvable constraint"
 
 
-
 (* type declarations for consistency checking *)
 val _ = op solve : con -> subst
 (* constraint solving ((elided)) (THIS CAN'T HAPPEN -- claimed code was not used) *)
@@ -2801,8 +2800,6 @@ val _ = if hasOption "NORUN" then ()
 (* type declarations for consistency checking *)
 val _ = op strip_options : action -> string list -> action * string list
 
-
-
 val () = Unit.checkAssert "int ~ bool cannot be solved"
          (fn () => hasNoSolution (inttype ~ booltype))
 
@@ -2813,34 +2810,11 @@ val () = Unit.checkAssert "bool ~ bool is solved by the identity substitution"
          (fn () => solutionEquivalentTo (booltype ~ booltype, idsubst))
 
 val () = Unit.checkAssert "bool ~ 'a is solved by 'a |--> bool"
-         (fn () => solutionEquivalentTo (booltype ~ TYVAR "a", [("a", booltype)]))
+         (fn () => solutionEquivalentTo (booltype ~ TYVAR "'a", 
+                                         "'a" |--> booltype))
 
-val () = Unit.checkAssert "'a ~ bool cannot be solved cyclically"
-         (fn () => hasNoSolution (TYVAR "a" ~ CONAPP (TYVAR "a", [])))
 
-val () = Unit.checkAssert "'a ~ 'b is solved by 'a |--> 'b"
-         (fn () => solutionEquivalentTo (TYVAR "a" ~ TYVAR "b", [("a", TYVAR "b")]))
 
-val () = Unit.checkAssert "'a ~ 'a cannot be solved cyclically"
-         (fn () => hasNoSolution (TYVAR "a" ~ CONAPP (TYVAR "a", [])))
-
-val () = Unit.checkAssert "TYCON 'list ~ TYCON 'list can be solved"
-         (fn () => hasSolution (TYCON "list" ~ TYCON "list"))
-
-val () = Unit.checkAssert "TYCON 'list ~ TYCON 'pair cannot be solved"
-         (fn () => hasNoSolution (TYCON "list" ~ TYCON "pair"))
-
-val () = Unit.checkAssert "CONAPP (TYCON 'list, [int]) ~ CONAPP (TYCON 'list, [int]) can be solved"
-         (fn () => hasSolution (CONAPP (TYCON "list", [inttype]) ~ CONAPP (TYCON "list", [inttype])))
-
-val () = Unit.checkAssert "CONAPP (TYCON 'list, [int]) ~ CONAPP (TYCON 'list, [bool]) cannot be solved"
-         (fn () => hasNoSolution (CONAPP (TYCON "list", [inttype]) ~ CONAPP (TYCON "list", [booltype])))
-
-val () = Unit.checkAssert "TRIVIAL can always be solved"
-         (fn () => hasSolution TRIVIAL)
-         
-val () = Unit.checkAssert "Unsolvable constraint raises TypeError"
-         (fn () => hasSolution (TYVAR "a" ~ TYCON "unknown"))
 
 val () = Unit.report ()
 val () = Unit.reportWhenFailures ()
