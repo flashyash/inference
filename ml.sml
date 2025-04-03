@@ -1655,19 +1655,25 @@ fun solve TRIVIAL = idsubst
   | solve (TYVAR t1 ~ TYCON tc1) = t1 |--> TYCON tc1
   | solve (TYCON tc1 ~ TYVAR t1) = t1 |--> TYCON tc1
   | solve (TYVAR t1 ~ CONAPP (ty1, ts)) = 
-      if member t1 (freetyvars ty1) then
+      if member t1 (freetyvars (CONAPP (ty1, ts))) then
         unsatisfiableEquality (TYVAR t1, CONAPP (ty1, ts))
       else
         t1 |--> CONAPP (ty1, ts)
   | solve (TYCON tc1 ~ TYCON tc2) = if eqTycon (tc1, tc2) then idsubst
                                     else raise TypeError "unsolvable constraint"
   | solve (CONAPP(ty1, ts1) ~ CONAPP(ty2, ts2)) = 
-      let val theta = solve (ty1 ~ ty2)
-      in ListPair.foldlEq (fn (t1, t2, theta) => compose (theta, solve (t1 ~ t2)))
-              theta
-              (ts1, ts2)
+      solve (ListPair.foldlEq (fn (t1, t2, con) => con /\ t1 ~ t2)
+              (ty1 ~ ty2)
+              (ts1, ts2))
+  
+  | solve (c1 /\ c2) = 
+      let 
+          val theta1 = solve c1
+          val newCon = consubst theta1 c2
+          val theta2 = solve newCon
+      in  compose (theta2, theta1)
       end
-
+  | solve (CONAPP (ty1, ts) ~ TYVAR t1) = solve (TYVAR t1 ~ CONAPP (ty1, ts))
   | solve _ = raise TypeError "unsolvable constraint"
 
 
@@ -1679,7 +1685,19 @@ fun hasGoodSolution c = solves (solve c, c) handle TypeError _ => false
 val hasSolution = not o hasNoSolution : con -> bool
 fun solutionEquivalentTo (c, theta) = eqsubst (solve c, theta)
 
-
+fun isIdempotent pairs =
+    let fun distinct a' (a, tau) = a <> a' andalso not (member a' (freetyvars tau))
+        fun good (prev', (a, tau)::next) =
+              List.all (distinct a) prev' andalso List.all (distinct a) next
+              andalso good ((a, tau)::prev', next)
+          | good (_, []) = true
+    in  good ([], pairs)
+    end
+val solve =
+    fn c => let val theta = solve c
+            in  if isIdempotent theta then theta
+                else raise BugInTypeInference "non-idempotent substitution"
+            end
 
 (* utility functions for {\uml} S435c *)
 (* filled in when implementing uML *)
@@ -1697,8 +1715,20 @@ fun typeof (e, Gamma) =
             end
 
 (* function [[literal]], to infer the type of a literal constant ((prototype)) 438b *)
-      fun literal _ = raise LeftAsExercise "literal"
+      fun literal (NUM _) = (inttype, TRIVIAL)
+        | literal (SYM _) = (symtype, TRIVIAL)
+        | literal (BOOLV _) = (booltype, TRIVIAL)
+        | literal NIL = (listtype (freshtyvar()), TRIVIAL)
+        | literal (PAIR (car, cdr)) =
+            let
+              val (tyCar, conCar) = literal car
+              val (tyCdr, conCdr) = literal cdr
+              
+            in (tyCdr, conCar /\ conCdr /\ listtype tyCar ~ tyCdr)
+            end
+        | literal _ = raise InternalError "literal type"
 
+  
 (* function [[ty]], to infer the type of a \nml\ expression, given [[Gamma]] 438c *)
       fun ty (LITERAL n) = literal n
         (* more alternatives for [[ty]] 438d *)
@@ -1717,11 +1747,65 @@ fun typeof (e, Gamma) =
         | ty (LETX (LETSTAR, (b :: bs), body)) = 
             ty (LETX (LET, [b], LETX (LETSTAR, bs, body)))
         (* more alternatives for [[ty]] ((prototype)) 438g *)
-        | ty (IFX (e1, e2, e3))        = raise LeftAsExercise "type for IFX"
-        | ty (BEGIN es)                = raise LeftAsExercise "type for BEGIN"
-        | ty (LAMBDA (formals, body))  = raise LeftAsExercise "type for LAMBDA"
-        | ty (LETX (LET, bs, body))    = raise LeftAsExercise "type for LET"
-        | ty (LETX (LETREC, bs, body)) = raise LeftAsExercise "type for LETREC"
+        | ty (IFX (e1, e2, e3)) = 
+            let val (e1type, e1con) = typeof (e1, Gamma)
+                val (e2type, e2con) = typeof (e2, Gamma)
+                val (e3type, e3con) = typeof (e3, Gamma)
+                val ifcon = e1con /\ e2con /\ e3con /\ 
+                              (e1type ~ booltype) /\ (e2type ~ e3type)
+            in (e2type, ifcon)
+            end
+        | ty (BEGIN [])                = (unittype, TRIVIAL)
+        | ty (BEGIN es)                = 
+            let val (esTypes, esCon) = typesof (es, Gamma)            
+            in
+                (List.last esTypes, esCon)
+            end
+        | ty (LAMBDA (formals, body))  =
+            let 
+                val argtypes = map (fn _ => freshtyvar ()) formals
+                val typeSchemes = map (fn tau => FORALL ([], tau)) argtypes
+                val newTyEnv = ListPair.foldrEq (fn (x, tau, Gamma) => 
+                                                  bindtyscheme (x, tau, Gamma))
+                                                Gamma
+                                                (formals, typeSchemes)
+                val (tau, c) = typeof (body, newTyEnv)               
+            in (funtype (argtypes, tau), c) 
+            end
+        | ty (LETX (LET, bs, body)) =
+            let
+                val (names, exps) = ListPair.unzip bs 
+                val (bsTypes, bsCon) = typesof (exps, Gamma)
+                val theta = solve bsCon
+                val ftvGamma = freetyvarsGamma (Gamma)
+                val domTheta = dom theta
+                val primeCons = map (fn tyVar => TYVAR tyVar ~ (varsubst theta) tyVar) (inter (ftvGamma, domTheta))
+                val conjoinedCons = conjoinConstraints(primeCons)
+                val tySchemes = map (fn eachTau => generalize(eachTau, union (freetyvarsGamma Gamma, freetyvarsConstraint conjoinedCons))) bsTypes
+                val newGamma = ListPair.foldrEq bindtyscheme Gamma (names, tySchemes)
+                val (tb, cb) = typeof (body, newGamma)
+
+            in (tb, (conjoinedCons /\ cb))
+            end
+        | ty (LETX (LETREC, bs, body)) = 
+            let
+                val (names, exps) = ListPair.unzip bs 
+                val freshTypes = map (fn _ => freshtyvar ()) names
+                val typeSchemes = map (fn tau => FORALL ([], tau)) freshTypes
+                val gammaE = ListPair.foldrEq bindtyscheme Gamma (names, typeSchemes)
+                val (types, con) = typesof (exps, gammaE)
+                val mainCon = ListPair.foldrEq (fn (tau, tyVar, con) => con /\ tau ~ tyVar) con (types, freshTypes)
+                val theta = solve mainCon
+                val ftvGamma = freetyvarsGamma (Gamma)
+                val domTheta = dom theta
+                val primeCons = map (fn tyVar => TYVAR tyVar ~ (varsubst theta) tyVar) (inter (ftvGamma, domTheta))
+                val conjoinedCons = conjoinConstraints(primeCons)
+                val tySchemes = map (fn eachTau => generalize((tysubst theta) eachTau, union (freetyvarsGamma Gamma, freetyvarsConstraint conjoinedCons))) types
+                val newGamma = ListPair.foldrEq bindtyscheme Gamma (names, tySchemes)
+                val (tb, cb) = typeof (body, newGamma)
+            in (tb, (conjoinedCons /\ cb))
+            end
+
 (* type declarations for consistency checking *)
 val _ = op typeof  : exp      * type_env -> ty      * con
 val _ = op typesof : exp list * type_env -> ty list * con
@@ -2576,7 +2660,7 @@ val primitiveBasis =
                                funtype ([listtype alpha], listtype alpha)) :: 
                      [])
   end
-val predefined_included = false
+val predefined_included = true
 val predefs = if not predefined_included then [] else 
                [ ";  predefined {\\nml} functions S423b "
                , "(define bind (x y alist)"
@@ -2813,7 +2897,61 @@ val () = Unit.checkAssert "bool ~ 'a is solved by 'a |--> bool"
          (fn () => solutionEquivalentTo (booltype ~ TYVAR "'a", 
                                          "'a" |--> booltype))
 
+(* Trivial case *)
+val () = Unit.checkAssert "TRIVIAL is solved by the identity substitution"
+         (fn () => solutionEquivalentTo (TRIVIAL, idsubst))
 
+(* Type Variable = Type Variable *)
+val () = Unit.checkAssert "'a ~ 'b is solved by 'a |--> 'b"
+         (fn () => solutionEquivalentTo (TYVAR "'a" ~ TYVAR "'b", "'a" |--> TYVAR "'b"))
+
+(* Type Variable = Type Constructor *)
+val () = Unit.checkAssert "'a ~ int is solved by 'a |--> int"
+         (fn () => solutionEquivalentTo (TYVAR "'a" ~ inttype, "'a" |--> inttype))
+
+(* Type Constructor = Type Variable *)
+val () = Unit.checkAssert "bool ~ 'b is solved by 'b |--> bool"
+         (fn () => solutionEquivalentTo (booltype ~ TYVAR "'b", "'b" |--> booltype))
+
+(* Type Variable = Constructor Application - Solvable *)
+val () = Unit.checkAssert "'a ~ list int is solved by 'a |--> list int"
+         (fn () => solutionEquivalentTo (
+                     TYVAR "'a" ~ listtype inttype,
+                     "'a" |--> listtype inttype))
+
+(* Type Variable = Constructor Application - Unsolvable (occurs check) *)
+val () = Unit.checkAssert "'a ~ list 'a is not solvable (occurs check)"
+         (fn () => hasNoSolution (TYVAR "'a" ~ listtype (TYVAR "'a")))
+
+(* Type Constructor = Type Constructor - Solvable *)
+val () = Unit.checkAssert "int ~ int is solved by idsubst"
+         (fn () => solutionEquivalentTo (inttype ~ inttype, idsubst))
+
+(* Type Constructor = Type Constructor - Unsolvable *)
+val () = Unit.checkAssert "int ~ bool is not solvable"
+         (fn () => hasNoSolution (inttype ~ booltype))
+
+(* Constructor Application = Constructor Application - Solvable *)
+val () = Unit.checkAssert "list 'a ~ list bool is solved by 'a |--> bool"
+         (fn () => solutionEquivalentTo (
+                     listtype (TYVAR "'a") ~ listtype booltype,
+                     "'a" |--> booltype))
+
+(* Constructor Application = Constructor Application - Unsolvable *)
+
+(* Type Constructor = Constructor Application - Unsolvable *)
+val () = Unit.checkAssert "int ~ list int is not solvable"
+         (fn () => hasNoSolution (inttype ~ listtype inttype))
+
+(* Constructor Application = Type Constructor - Unsolvable *)
+val () = Unit.checkAssert "list int ~ int is not solvable"
+         (fn () => hasNoSolution (listtype inttype ~ inttype))
+
+(* AND constraint - currently unsupported in solve *)
+val () = Unit.checkAssert "'a ~ int AND 'b ~ bool is solved by both substitutions"
+         (fn () => solutionEquivalentTo (
+                    (TYVAR "'a" ~ inttype /\ TYVAR "'b" ~ booltype),
+                    compose ("'a" |--> inttype, "'b" |--> booltype)))
 
 
 val () = Unit.report ()

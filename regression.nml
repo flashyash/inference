@@ -1,0 +1,91 @@
+(check-principal-type 3 int)
+(check-principal-type #t bool)
+(check-principal-type 'hello sym)
+(check-principal-type '() (forall ['a] (list 'a)))
+(check-principal-type '(1 2) (list int))
+
+(check-type-error '(1 #t)) 
+(check-type-error '(1 'hi)) 
+
+
+(check-principal-type (if #t 1 2) int)
+(check-principal-type (if #t #f #t) bool)
+(check-principal-type (if #f 'hi 'bye) sym)
+
+(check-type-error (if #t 1 #f))
+(check-type-error (if 4 'nice 'bad))
+
+
+(check-principal-type (begin 1 2 3) int)
+(check-principal-type (begin #t #f #t) bool)
+(check-principal-type (begin 'a 'b 'c) sym)
+(check-principal-type (begin) unit)
+
+
+(check-principal-type (lambda (x) 3) (forall ['a] ('a -> int)))
+(check-principal-type (lambda (x) #t) (forall ['a] ('a -> bool)))
+(check-principal-type (lambda (x y) (+ x y)) (int int -> int))
+
+(check-type-error (lambda (x) (+ x #t)))
+(check-type-error (lambda (x) (if x 1 'heyo))) 
+(check-type-error (lambda (x y z) (kevin))) 
+
+
+(check-principal-type (let ([x 3] [y 4]) (+ x y)) int)
+(check-principal-type (let ([x 'hi] [y 'byebye]) (if #t y 'hi)) sym)
+
+(check-type-error (let ([x 10] [y #t]) (+ x y)))
+(check-type-error (let ([x 'heyeohey] [y 42]) (/ x y)))
+
+
+
+(check-principal-type (letrec ([add (lambda (x y) 
+                                        (+ x y))]
+                                [sub (lambda (x y) 
+                                    (- x y))])
+                        (add 3 (sub 3 2))) int)
+
+(check-principal-type (letrec ([multiply (lambda (x y)
+                                        (* x y))]
+                                [divide (lambda (x y)
+                                    (/ x y))])
+                        (multiply 5 (divide 6 3))) int)
+
+(check-principal-type 
+  (letrec ([factorial 
+              (lambda (n) 
+                (if (= n 0) 1 (* n (factorial (- n 1)))))])
+    (factorial 5)) 
+  int)
+
+
+  (check-type-error 
+  (letrec ([factorial 
+              (lambda (n) 
+                (if (= n 0) 1 (* n (factorial (- n #t)))))])
+    (factorial 5)))
+
+(check-type-error 
+  (letrec ([even? 
+              (lambda (n) 
+                (if (= n 0) #t (odd? (- n #t))))]
+           [odd? 
+              (lambda (n) 
+                (if (= n 0) #f (even? (- n 1))))])
+    (even? 4)))
+
+(check-principal-type 
+  (map (lambda (x) (+ x 1)) '(1 2 3)) 
+  (list int))
+
+(check-principal-type 
+  (filter (lambda (x) (< x 3)) '(1 2 3 4)) 
+  (list int))
+
+(check-principal-type 
+  (exists? (lambda (x) (= x 2)) '(1 2 3)) 
+  bool)
+
+(check-principal-type 
+  (foldr (lambda (x acc) (+ x acc)) 0 '(1 2 3)) 
+  int)
