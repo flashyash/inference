@@ -2651,14 +2651,33 @@ val primitiveBasis =
                                    | _   => raise BugInTypeInference
                                                      "car applied to non-list"),
                                funtype ([listtype alpha], alpha)) ::
-                     ("cdr",   unaryOp
-                                 (fn (PAIR (_, cdr)) => cdr 
-                                   | NIL => raise RuntimeError
-                                                     "cdr applied to empty list"
-                                   | _   => raise BugInTypeInference
-                                                     "cdr applied to non-list"),
-                               funtype ([listtype alpha], listtype alpha)) :: 
-                     [])
+                      ("cdr",   unaryOp
+                                  (fn (PAIR (_, cdr)) => cdr 
+                                    | NIL => raise RuntimeError
+                                                  "cdr applied to empty list"
+                                    | _   => raise BugInTypeInference
+                                                  "cdr applied to non-list"),
+                                funtype ([listtype alpha], listtype alpha))
+                                                                          ::
+                      ("pair",  binaryOp (fn (a, b) => PAIR (a, b)),
+                                funtype ([alpha, beta]
+                                        , pairtype (alpha, beta)))
+                                                                          ::
+                      ("fst",  unaryOp 
+                                  (fn (PAIR (a, b)) => a
+                                    | _ => raise RuntimeError
+                                                "fst applies to non-pair"),
+                                funtype ([pairtype (alpha, beta)]
+                                        , alpha))
+                                                                          ::
+                      ("snd",  unaryOp 
+                                  (fn (PAIR (a, b)) => b
+                                    | _ => raise RuntimeError
+                                                "snd applies to non-pair"),
+                                funtype ([pairtype (alpha, beta)]
+                                        , beta))
+                                                                          ::
+                      [])
   end
 val predefined_included = true
 val predefs = if not predefined_included then [] else 
